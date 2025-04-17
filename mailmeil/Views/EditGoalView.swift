@@ -92,41 +92,28 @@ struct EditGoalView: View {
                             }
                             .padding(.top)
 
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(textFieldBackgroundColor)
+                            VStack(spacing: 16) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(textFieldBackgroundColor)
+                                    
+                                    TextField("목표 이름", text: $title)
+                                        .font(.title2)
+                                        .multilineTextAlignment(.center)
+                                        .padding()
+                                        .focused($isTitleFocused)
+                                }
+                                .padding(.horizontal)
                                 
-                                TextField("목표 이름", text: $title)
-                                    .font(.title2)
-                                    .multilineTextAlignment(.center)
-                                    .padding()
-                                    .focused($isTitleFocused)
+                                HStack {
+                                    Toggle("리스트 반복", isOn: $isDailyRepeat)
+                                        .frame(maxWidth: .infinity, alignment: .center)
+                                }
+                                .padding(.horizontal)
+                                .padding(.vertical, 8)
                             }
-                            .padding(.horizontal)
-                            .padding(.bottom)
                         }
-                    }
-                    .padding(.horizontal)
-
-                    // 반복 설정 섹션
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(backgroundColor)
-                        
-                        HStack {
-                            Text("매일 반복")
-                                .font(.title2)
-                                .bold()
-                            
-                            Spacer()
-                            
-                            Toggle("", isOn: $isDailyRepeat)
-                                .tint(selectedColor)
-                                .labelsHidden()
-                                .frame(width: 50)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                        .padding(.bottom, 8)
                     }
                     .padding(.horizontal)
 

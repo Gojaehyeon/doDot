@@ -42,7 +42,7 @@ class GoalsViewModel: ObservableObject {
                 content: content,
                 isCompleted: false,
                 order: updatedGoal.todos.count,
-                repeatDays: repeatDays,  // 사용자가 선택한 요일 사용
+                repeatDays: [0,1,2,3,4,5,6],  // 모든 요일 선택
                 isBase: true
             )
             updatedGoal.baseTodos.append(baseItem)
@@ -52,23 +52,24 @@ class GoalsViewModel: ObservableObject {
                 content: content,
                 isCompleted: false,
                 order: updatedGoal.todos.count,
-                repeatDays: repeatDays,  // 사용자가 선택한 요일 사용
+                repeatDays: [0,1,2,3,4,5,6],  // 모든 요일 선택
                 isBase: false
             )
             updatedGoal.todos.append(todayItem)
         } else {
-            let regularItem = Item(
+            let item = Item(
                 timestamp: Date(),
                 content: content,
                 isCompleted: false,
                 order: updatedGoal.todos.count,
-                repeatDays: [],  // 일반 목표는 요일 정보 없음
+                repeatDays: [],
                 isBase: false
             )
-            updatedGoal.todos.append(regularItem)
+            updatedGoal.todos.append(item)
         }
         
         goals[goalIndex] = updatedGoal
+        objectWillChange.send()
         saveToDisk()
     }
 
