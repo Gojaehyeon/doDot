@@ -3,6 +3,15 @@ import SwiftUI
 struct AddGoalView: View {
     @EnvironmentObject var viewModel: GoalsViewModel
     @Environment(\.dismiss) var dismiss
+    @Environment(\.colorScheme) var colorScheme
+
+    private var backgroundColor: Color {
+        colorScheme == .light ? .white : Color(.secondarySystemBackground)
+    }
+
+    private var textFieldBackgroundColor: Color {
+        colorScheme == .light ? Color(.systemGray5) : Color(.tertiarySystemBackground)
+    }
 
     @State private var title: String = ""
     @State private var selectedEmoji: String = "😀"
@@ -24,11 +33,13 @@ struct AddGoalView: View {
         .red, .orange, .yellow, .green, .blue, .indigo,
         .purple, .pink, .brown, .gray, .teal, .cyan
     ]
+    let colorNames = ["red", "orange", "yellow", "green", "blue", "indigo",
+                     "purple", "pink", "brown", "gray", "teal", "cyan"]
 
     private var colorPickerSection: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.secondarySystemBackground))
+                .fill(backgroundColor)
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 6), spacing: 12) {
                 ForEach(Array(availableColors.enumerated()), id: \.offset) { index, color in
@@ -37,12 +48,12 @@ struct AddGoalView: View {
                         .frame(width: 40, height: 40)
                         .overlay(
                             Circle()
-                                .stroke(Color.gray.opacity(0.3), lineWidth: 4)
+                                .stroke(colorScheme == .light ? Color.gray : Color.white, lineWidth: 3)
                                 .opacity(selectedColor == color ? 1 : 0)
                         )
                         .onTapGesture {
                             selectedColor = color
-                            selectedColorName = ["red", "orange", "yellow", "green", "blue", "indigo", "purple", "pink", "brown", "gray", "teal", "cyan"][index]
+                            selectedColorName = colorNames[index]
                         }
                 }
             }
@@ -58,7 +69,7 @@ struct AddGoalView: View {
                 VStack(spacing: 20) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(.secondarySystemBackground))
+                            .fill(backgroundColor)
 
                         VStack(spacing: 16) {
                             ZStack {
@@ -72,7 +83,7 @@ struct AddGoalView: View {
 
                             ZStack {
                                 RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color(.tertiarySystemBackground))
+                                    .fill(textFieldBackgroundColor)
 
                                 TextField("목표 이름", text: $title)
                                     .font(.title2)
@@ -96,7 +107,7 @@ struct AddGoalView: View {
 
                     ZStack {
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(.secondarySystemBackground))
+                            .fill(backgroundColor)
 
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 6), spacing: 12) {
                             ForEach(availableEmojis, id: \.self) { emoji in

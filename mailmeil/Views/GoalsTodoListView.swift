@@ -14,6 +14,10 @@ struct GoalTodoListView: View {
     @FocusState private var isFocused: Bool
     @State private var openRowID: UUID? = nil
 
+    private var todayIndex: Int {
+        (Calendar.current.component(.weekday, from: Date()) + 5) % 7
+    }
+
     var body: some View {
         Group {
             VStack(alignment: .leading, spacing: 8) {
@@ -58,36 +62,41 @@ struct GoalTodoListView: View {
                 }
 
                 if isAdding {
-                    AddTodoInputView(text: $newText, onCommit: {
-                        onAdd()
-                    })
-                    .focused($isFocused)
-                    .multilineTextAlignment(.leading)
-                    .onReceive(NotificationCenter.default.publisher(for: Notification.Name("RefocusTodoInput"))) { notification in
-                        if let goalId = notification.object as? UUID, goalId == goal.id {
-                            isFocused = true
-                        }
+                    HStack(spacing: 8) {
+                        Circle()
+                            .stroke(Color.gray.opacity(0.6), style: StrokeStyle(lineWidth: 1))
+                            .frame(width: 22, height: 22)
+                        
+                        TextField("", text: $newText)
+                            .focused($isFocused)
+                            .submitLabel(.done)
+                            .onSubmit {
+                                if !newText.isEmpty {
+                                    onAdd()
+                                    isAdding = false
+                                }
+                            }
                     }
-                    .onAppear {
+                    .padding(.leading, 20)
+                } else {
+                    HStack(spacing: 8) {
+                        Circle()
+                            .stroke(Color.gray.opacity(0.6), style: StrokeStyle(lineWidth: 1))
+                            .frame(width: 22, height: 22)
+                        
+                        Rectangle()
+                            .fill(Color.clear)
+                            .contentShape(Rectangle())
+                            .frame(maxWidth: .infinity, minHeight: 22)
+                    }
+                    .padding(.leading, 20)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        isAdding = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                             isFocused = true
                         }
                     }
-                    .padding(.leading, 20)
-                } else {
-                    Button(action: {
-                        isAdding = true
-                    }) {
-                        HStack(spacing: 8) {
-                            Circle()
-                                .stroke(Color.gray.opacity(0.6), style: StrokeStyle(lineWidth: 1))
-                                .frame(width: 22, height: 22)
-                            Spacer()
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .padding(.leading, 20)
                 }
 
                 Rectangle()
@@ -104,7 +113,13 @@ struct GoalTodoListView: View {
             todo: todo,
             goalColor: goalColor,
             isDailyRepeat: goal.isDailyRepeat,
-            onTapRepeatDays: onTapRepeatDays
+            isToday: todo.wrappedValue.repeatDays.contains(todayIndex),
+            onTapRepeatDays: onTapRepeatDays,
+            onToggle: { 
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    onToggle(todo.wrappedValue.id)
+                }
+            }
         )
     }
 }
@@ -113,22 +128,29 @@ private struct TodoRowView: View {
     @Binding var todo: Item
     var goalColor: Color
     var isDailyRepeat: Bool
+    var isToday: Bool
     var onTapRepeatDays: (() -> Void)?
+    var onToggle: (() -> Void)?
 
     @State private var isEditing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .center) {
-                Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .resizable()
-                    .frame(width: 22, height: 22)
-                    .foregroundColor(todo.isCompleted ? goalColor : .gray)
-                    .onTapGesture {
-                        withAnimation {
-                            todo.isCompleted.toggle()
-                        }
+                if !isDailyRepeat || isToday {
+                    Button(action: {
+                        onToggle?()
+                    }) {
+                        Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
+                            .resizable()
+                            .frame(width: 22, height: 22)
+                            .foregroundColor(todo.isCompleted ? goalColor : .gray)
                     }
+                    .buttonStyle(BorderlessButtonStyle())
+                } else {
+                    Color.clear
+                        .frame(width: 22, height: 22)
+                }
 
                 if isEditing {
                     TextField("", text: $todo.content, onCommit: {
@@ -139,51 +161,35 @@ private struct TodoRowView: View {
                     .padding(.vertical, 4)
                     .padding(.trailing, 12)
                 } else {
-                    HStack {
-                        Text(todo.content)
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(todo.isCompleted ? .gray : .primary)
-                            .onTapGesture {
-                                isEditing = true
-                            }
+                    Text(todo.content)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(todo.isCompleted ? .gray : ((!isDailyRepeat || isToday) ? .primary : .gray))
+                        .onTapGesture {
+                            isEditing = true
+                        }
 
-                        Spacer()
+                    Spacer()
 
-                        if isDailyRepeat {
-                            HStack(spacing: 2) {
-                                let weekdaySymbols = ["월", "화", "수", "목", "금", "토", "일"]
-
-                                ForEach(0..<7, id: \.self) { index in
-                                    let isSelected = todo.repeatDays.contains(index)
-                                    let isCompleted = todo.completedDays.contains(index)
-
-                                    if isSelected {
-                                        ZStack {
-                                            Circle()
-                                                .fill(goalColor.opacity(0.2))
-                                                .frame(width: 16, height: 16)
-
-                                            if isCompleted {
-                                                Circle()
-                                                    .stroke(goalColor, lineWidth: 3)
-                                                    .frame(width: 16, height: 16)
-                                            }
-
-                                            Text(weekdaySymbols[index])
-                                                .font(.caption2)
-                                                .foregroundColor(.gray)
-                                        }
-                                        .frame(minWidth: 16)
-                                    }
+                    if isDailyRepeat {
+                        HStack(spacing: 2) {
+                            ForEach(0..<7) { index in
+                                ZStack {
+                                    Circle()
+                                        .fill(todo.repeatDays.contains(index) ? goalColor.opacity(0.2) : Color.clear)
+                                        .frame(width: 16, height: 16)
+                                    
+                                    Text(["월", "화", "수", "목", "금", "토", "일"][index])
+                                        .font(.system(size: 10))
+                                        .foregroundColor(todo.repeatDays.contains(index) ? .primary : .gray)
                                 }
                             }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                onTapRepeatDays?()
-                            }
                         }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            onTapRepeatDays?()
+                        }
+                        .padding(.trailing, 20)
                     }
-                    .padding(.trailing, 20)
                 }
             }
             .padding(.leading, 20)

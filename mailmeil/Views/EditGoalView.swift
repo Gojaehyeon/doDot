@@ -5,6 +5,15 @@ struct EditGoalView: View {
     let goal: Goal
     @EnvironmentObject var viewModel: GoalsViewModel
     @Environment(\.dismiss) var dismiss
+    @Environment(\.colorScheme) var colorScheme
+
+    private var backgroundColor: Color {
+        colorScheme == .light ? .white : Color(.secondarySystemBackground)
+    }
+
+    private var textFieldBackgroundColor: Color {
+        colorScheme == .light ? Color(.systemGray5) : Color(.tertiarySystemBackground)
+    }
 
     @State private var title: String = ""
     @State private var todos: [Item] = []
@@ -27,11 +36,13 @@ struct EditGoalView: View {
         .red, .orange, .yellow, .green, .blue, .indigo,
         .purple, .pink, .brown, .gray, .teal, .cyan
     ]
+    let colorNames = ["red", "orange", "yellow", "green", "blue", "indigo",
+                     "purple", "pink", "brown", "gray", "teal", "cyan"]
 
     private var colorPickerSection: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.secondarySystemBackground))
+                .fill(backgroundColor)
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 6), spacing: 12) {
                 ForEach(Array(availableColors.enumerated()), id: \.offset) { index, color in
@@ -40,12 +51,12 @@ struct EditGoalView: View {
                         .frame(width: 40, height: 40)
                         .overlay(
                             Circle()
-                                .stroke(Color.gray.opacity(0.3), lineWidth: 4)
+                                .stroke(colorScheme == .light ? Color.gray : Color.white, lineWidth: 3)
                                 .opacity(selectedColor == color ? 1 : 0)
                         )
                         .onTapGesture {
                             selectedColor = color
-                            selectedColorName = ["red", "orange", "yellow", "green", "blue", "indigo", "purple", "pink", "brown", "gray", "teal", "cyan"][index]
+                            selectedColorName = colorNames[index]
                         }
                 }
             }
@@ -69,7 +80,7 @@ struct EditGoalView: View {
                 VStack(spacing: 20) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(.secondarySystemBackground))
+                            .fill(backgroundColor)
 
                         VStack(spacing: 16) {
                             ZStack {
@@ -83,8 +94,8 @@ struct EditGoalView: View {
 
                             ZStack {
                                 RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color(.tertiarySystemBackground))
-
+                                    .fill(textFieldBackgroundColor)
+                                
                                 TextField("목표 이름", text: $title)
                                     .font(.title2)
                                     .multilineTextAlignment(.center)
@@ -92,14 +103,30 @@ struct EditGoalView: View {
                                     .focused($isTitleFocused)
                             }
                             .padding(.horizontal)
-
-                            HStack {
-                                Toggle("리스트 반복", isOn: $isDailyRepeat)
-                                    .frame(maxWidth: .infinity, alignment: .center)
-                            }
-                            .padding(.horizontal)
                             .padding(.bottom)
                         }
+                    }
+                    .padding(.horizontal)
+
+                    // 반복 설정 섹션
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(backgroundColor)
+                        
+                        HStack {
+                            Text("매일 반복")
+                                .font(.title2)
+                                .bold()
+                            
+                            Spacer()
+                            
+                            Toggle("", isOn: $isDailyRepeat)
+                                .tint(selectedColor)
+                                .labelsHidden()
+                                .frame(width: 50)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                     }
                     .padding(.horizontal)
 
@@ -107,8 +134,8 @@ struct EditGoalView: View {
 
                     ZStack {
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(.secondarySystemBackground))
-
+                            .fill(backgroundColor)
+                        
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 6), spacing: 12) {
                             ForEach(availableEmojis, id: \.self) { emoji in
                                 Text(emoji)

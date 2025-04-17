@@ -1,237 +1,194 @@
 import SwiftUI
+import SwiftData
 
 struct GoalDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var viewModel: GoalsViewModel
-    var goal: Goal
-
+    let goal: Goal
+    @State private var isAddingTodo = false
     @State private var newTodoText = ""
-    @State private var todos: [Item] = []
+    @State private var showEditSheet = false
     @State private var isEditing = false
     @State private var selectedTodo: Item?
-
+    @State private var showEditTodoPage = false
+    
+    private var todayIndex: Int {
+        (Calendar.current.component(.weekday, from: Date()) + 5) % 7
+    }
+    
+    private var routines: [Item] {
+        goal.todos.sorted { item1, item2 in
+            if item1.isCompleted == item2.isCompleted {
+                return true
+            }
+            return !item1.isCompleted
+        }
+    }
+    
+    private var completedTodos: [Item] {
+        goal.completedHistory
+            .sorted { $0.timestamp > $1.timestamp }
+    }
+    
     var body: some View {
-        let todayIndex = (Calendar.current.component(.weekday, from: Date()) + 5) % 7
-        let visibleTodos = todos.enumerated().filter { $0.element.repeatDays.contains(todayIndex) }
-        let hiddenTodos = todos.enumerated().filter { !$0.element.repeatDays.contains(todayIndex) }
-        let completedTodos = todos.enumerated().filter { $0.element.isCompleted }
-
-        let todoList = List {
-            if !visibleTodos.isEmpty {
-                Section(header:
-                    Text("오늘 할 일")
-                        .textCase(nil)
-                        .font(.subheadline)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.leading, -15)
-                ) {
-                    ForEach(visibleTodos, id: \.offset) { index, _ in
-                        NavigationLink(destination: TodoRepeatSettingsView(todo: $todos[index], goal: goal)) {
-                            HStack {
-                                Image(systemName: todos[index].isCompleted ? "checkmark.circle.fill" : "circle")
-                                    .foregroundColor(Color(goal.color))
-                                    .font(.system(size: 22))
-                                Text(todos[index].content)
-                                    .foregroundColor(todos[index].isCompleted ? .gray : .primary)
-                                Spacer()
-                                    .foregroundColor(.gray)
-                            }
-                            .contentShape(Rectangle())
-                        }
+        ZStack(alignment: .bottom) {
+            List {
+                Section(header: Text(goal.isDailyRepeat ? "루틴" : "할 일").padding(.leading, -10)) {
+                    ForEach(routines) { todo in
+                        todoRow(todo)
                     }
                     .onDelete { indexSet in
-                        indexSet.forEach { offset in
-                            let index = visibleTodos[offset].offset
-                            viewModel.deleteTodo(goalID: goal.id, todoID: todos[index].id)
-                            todos.remove(at: index)
+                        let todosToDelete = indexSet.map { routines[$0] }
+                        todosToDelete.forEach { todo in
+                            if todo.isCompleted {
+                                viewModel.toggleTodo(goalID: goal.id, todoID: todo.id)
+                            }
+                            if goal.isDailyRepeat {
+                                goal.baseTodos.removeAll { $0.content == todo.content }
+                            }
+                            viewModel.deleteTodo(goalID: goal.id, todoID: todo.id)
                         }
+                        viewModel.saveToDisk()
                     }
-                    .onMove { indices, newOffset in
-                        let resolved = indices.map { visibleTodos[$0].offset }
-                        todos.move(fromOffsets: IndexSet(resolved), toOffset: newOffset)
-                        updateOrder()
+                    .onMove { from, to in
+                        var todos = goal.todos
+                        todos.move(fromOffsets: from, toOffset: to)
+                        goal.todos = todos
+                    }
+                }
+                
+                if !completedTodos.isEmpty {
+                    Section(header: Text("완료한 일").padding(.leading, -10)) {
+                        ForEach(completedTodos) { todo in
+                            todoRow(todo, isCompletedSection: true)
+                        }
                     }
                 }
             }
-
-            if !hiddenTodos.isEmpty {
-                Section(header:
-                    Text("숨겨진 할 일")
-                        .textCase(nil)
-                        .font(.subheadline)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.leading, -15)
-                ) {
-                    ForEach(hiddenTodos, id: \.offset) { index, _ in
-                        NavigationLink(destination: TodoRepeatSettingsView(todo: $todos[index], goal: goal)) {
-                            HStack {
-                                Image(systemName: todos[index].isCompleted ? "checkmark.circle.fill" : "circle")
-                                    .foregroundColor(Color(goal.color))
-                                    .font(.system(size: 22))
-                                Text(todos[index].content)
-                                    .foregroundColor(todos[index].isCompleted ? .gray : .primary)
-                                Spacer()
-                                    .foregroundColor(.gray)
-                            }
-                            .contentShape(Rectangle())
-                        }
-                    }
-                    .onDelete { indexSet in
-                        indexSet.forEach { offset in
-                            let index = hiddenTodos[offset].offset
-                            viewModel.deleteTodo(goalID: goal.id, todoID: todos[index].id)
-                            todos.remove(at: index)
-                        }
-                    }
-                    .onMove { indices, newOffset in
-                        let resolved = indices.map { hiddenTodos[$0].offset }
-                        todos.move(fromOffsets: IndexSet(resolved), toOffset: newOffset)
-                        updateOrder()
-                    }
-                }
-            }
+            .listStyle(.insetGrouped)
             
-            if !completedTodos.isEmpty {
-                Section(header:
-                    Text("완료한 일")
-                        .textCase(nil)
-                        .font(.subheadline)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.leading, -15)
-                ) {
-                    ForEach(completedTodos, id: \.offset) { index, _ in
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(Color(goal.color))
-                                .font(.system(size: 22))
-                            Text(todos[index].content)
-                                .foregroundColor(.gray)
-                            Spacer()
-                            Text(formattedDate(todos[index].timestamp))
-                                .font(.caption)
-                                .foregroundColor(.gray)
+            // 항목 추가 UI
+            VStack {
+                Spacer()
+                HStack(spacing: 12) {
+                    TextField("항목 추가하기", text: $newTodoText)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(20)
+                        .onSubmit {
+                            let content = newTodoText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !content.isEmpty else { return }
+                            viewModel.addTodo(to: goal.id, content: content, repeatDays: [0,1,2,3,4,5,6])
+                            newTodoText = ""
                         }
-                        .contentShape(Rectangle())
+                    
+                    Button(action: {
+                        let content = newTodoText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !content.isEmpty else { return }
+                        viewModel.addTodo(to: goal.id, content: content, repeatDays: [0,1,2,3,4,5,6])
+                        newTodoText = ""
+                    }) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(Color(goal.color))
                     }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: -2)
+            }
+        }
+        .navigationTitle(goal.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    withAnimation {
+                        isEditing.toggle()
+                    }
+                }) {
+                    Text(isEditing ? "완료" : "편집")
                 }
             }
         }
         .environment(\.editMode, .constant(isEditing ? .active : .inactive))
-
-        return VStack {
-            todoList
-            HStack {
-                TextField(" 루틴 추가하기", text: $newTodoText)
-                    .padding(10)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(20)
-
-                Button(action: {
-                    guard !newTodoText.isEmpty else { return }
-                    let newOrder = (todos.map { $0.order }.max() ?? 0) + 1
-                    let newTodo = Item(timestamp: Date(), content: newTodoText, isCompleted: false, order: newOrder)
-                    viewModel.addTodo(to: goal.id, content: newTodoText)
-                    withAnimation {
-                        todos.append(newTodo)
-                    }
-                    newTodoText = ""
-                    sortTodos()
-                }) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(Color(goal.color))
-                }
-            }
-            .padding()
-        }
-        .onAppear {
-            todos = goal.todos
-            sortTodos()
-        }
-        .navigationTitle("\(goal.emoji) \(goal.title)")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(isEditing ? "완료" : "편집") {
-                    withAnimation {
-                        isEditing.toggle()
-                    }
-                }
+        .navigationDestination(isPresented: $showEditTodoPage) {
+            if let todo = selectedTodo {
+                EditTodoView(goal: goal, todo: todo)
             }
         }
     }
-
-    private func sortTodos() {
-        todos.sort { (lhs: Item, rhs: Item) -> Bool in
-            if lhs.isCompleted == rhs.isCompleted {
-                return lhs.order < rhs.order
+    
+    private func todoRow(_ todo: Item, isCompletedSection: Bool = false) -> some View {
+        HStack {
+            Button {
+                if !isCompletedSection {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        viewModel.toggleTodo(goalID: goal.id, todoID: todo.id)
+                    }
+                }
+            } label: {
+                Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(todo.isCompleted ? Color(goal.color) : (goal.isDailyRepeat && !todo.repeatDays.contains(todayIndex) ? Color(goal.color).opacity(0.3) : .gray))
+                    .font(.title3)
+            }
+            .buttonStyle(BorderlessButtonStyle())
+            .disabled(isCompletedSection || (goal.isDailyRepeat && !todo.repeatDays.contains(todayIndex)))
+            
+            if isCompletedSection {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(todo.content)
+                        .foregroundColor(.gray)
+                    
+                    Text(formatDate(todo.timestamp))
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
             } else {
-                return !lhs.isCompleted && rhs.isCompleted
-            }
-        }
-    }
-
-    private func updateOrder() {
-        for (index, _) in todos.enumerated() {
-            todos[index].order = index
-        }
-    }
-
-    private func moveItem(from source: IndexSet, to destination: Int) {
-        todos.move(fromOffsets: source, toOffset: destination)
-        updateOrder()
-    }
-
-    private func formattedDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
-    }
-}
-
-struct TodoRepeatSettingsView: View {
-    @Binding var todo: Item
-    var goal: Goal
-    let days = ["월", "화", "수", "목", "금", "토", "일"]
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Text("반복을 원하는 요일을 선택하세요")
-                .font(.system(size: 20, weight: .semibold))
-                .multilineTextAlignment(.center)
-                .padding(.bottom, 20)
-
-            HStack(spacing: 12) {
-                ForEach(0..<7, id: \.self) { index in
-                    Button(action: {
-                        var updatedDays = todo.repeatDays
-                        if updatedDays.contains(index) {
-                            updatedDays.removeAll { $0 == index }
-                        } else {
-                            updatedDays.append(index)
-                        }
-                        todo.repeatDays = updatedDays
-                    }) {
-                        ZStack {
-                            Circle()
-                                .fill(todo.repeatDays.contains(index) ? Color(goal.color).opacity(0.2) : Color(.systemGray5))
-                                .frame(width: 40, height: 40)
-                                .overlay(
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(todo.content)
+                        .foregroundColor(todo.isCompleted ? .gray : (goal.isDailyRepeat && !todo.repeatDays.contains(todayIndex) ? Color(goal.color).opacity(0.3) : .primary))
+                    
+                    if goal.isDailyRepeat {
+                        HStack(spacing: 4) {
+                            ForEach(0..<7) { index in
+                                ZStack {
                                     Circle()
-                                        .stroke(todo.repeatDays.contains(index) ? Color(goal.color) : Color.clear, lineWidth: 2)
-                                )
-
-                            Text(days[index])
-                                .font(.body)
-                                .foregroundColor(.primary)
+                                        .fill(todo.repeatDays.contains(index) ? Color(goal.color).opacity(0.2) : Color.clear)
+                                        .frame(width: 16, height: 16)
+                                    
+                                    Text(["월", "화", "수", "목", "금", "토", "일"][index])
+                                        .font(.system(size: 10))
+                                        .foregroundColor(todo.repeatDays.contains(index) ? .primary : .gray)
+                                }
+                            }
                         }
                     }
                 }
+                
+                Spacer()
+                
+                if goal.isDailyRepeat {
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.gray)
+                        .font(.caption)
+                }
             }
         }
-        .padding(.top, -100)
-        .padding()
-        .navigationTitle("반복 설정")
-        .navigationBarTitleDisplayMode(.inline)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if goal.isDailyRepeat && !isCompletedSection {
+                selectedTodo = todo
+                showEditTodoPage = true
+            }
+        }
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M월 d일"
+        return formatter.string(from: date)
     }
 }
