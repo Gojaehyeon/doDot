@@ -79,14 +79,14 @@ struct GoalDetailView: View {
                         .onSubmit {
                             let content = newTodoText.trimmingCharacters(in: .whitespacesAndNewlines)
                             guard !content.isEmpty else { return }
-                            viewModel.addTodo(to: goal.id, content: content)
+                            viewModel.addTodo(to: goal.id, content: content, repeatDays: [0,1,2,3,4,5,6])
                             newTodoText = ""
                         }
                     
                     Button(action: {
                         let content = newTodoText.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !content.isEmpty else { return }
-                        viewModel.addTodo(to: goal.id, content: content)
+                        viewModel.addTodo(to: goal.id, content: content, repeatDays: [0,1,2,3,4,5,6])
                         newTodoText = ""
                     }) {
                         Image(systemName: "plus.circle.fill")

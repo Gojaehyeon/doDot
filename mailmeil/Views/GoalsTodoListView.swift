@@ -172,29 +172,15 @@ private struct TodoRowView: View {
 
                     if isDailyRepeat {
                         HStack(spacing: 2) {
-                            let weekdaySymbols = ["월", "화", "수", "목", "금", "토", "일"]
-
-                            ForEach(0..<7, id: \.self) { index in
-                                let isSelected = todo.repeatDays.contains(index)
-                                let isCompleted = todo.completedDays.contains(index)
-
-                                if isSelected {
-                                    ZStack {
-                                        Circle()
-                                            .fill(goalColor.opacity(0.2))
-                                            .frame(width: 16, height: 16)
-
-                                        if isCompleted {
-                                            Circle()
-                                                .stroke(goalColor, lineWidth: 3)
-                                                .frame(width: 16, height: 16)
-                                        }
-
-                                        Text(weekdaySymbols[index])
-                                            .font(.caption2)
-                                            .foregroundColor(.gray)
-                                    }
-                                    .frame(minWidth: 16)
+                            ForEach(0..<7) { index in
+                                ZStack {
+                                    Circle()
+                                        .fill(todo.repeatDays.contains(index) ? goalColor.opacity(0.2) : Color.clear)
+                                        .frame(width: 16, height: 16)
+                                    
+                                    Text(["월", "화", "수", "목", "금", "토", "일"][index])
+                                        .font(.system(size: 10))
+                                        .foregroundColor(todo.repeatDays.contains(index) ? .primary : .gray)
                                 }
                             }
                         }
@@ -324,6 +310,12 @@ private struct SwipeableTodoRow: View {
                         .frame(height: geometry.size.height)
                     }
                 }
+            }
+            .padding(.vertical, 3)
+        }
+    }
+}
+
             }
             .padding(.vertical, 3)
         }

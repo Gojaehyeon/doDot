@@ -32,7 +32,7 @@ class GoalsViewModel: ObservableObject {
         saveToDisk()
     }
 
-    func addTodo(to goalID: UUID, content: String, repeatDays: [Int] = [0,1,2,3,4,5,6]) {
+    func addTodo(to goalID: UUID, content: String, repeatDays: [Int]) {
         guard let goalIndex = goals.firstIndex(where: { $0.id == goalID }) else { return }
         var updatedGoal = goals[goalIndex]
         
@@ -168,6 +168,14 @@ class GoalsViewModel: ObservableObject {
     
     func saveToDisk() {
         do {
+            // 디버그 로그 추가
+            for goal in goals {
+                print("🔍 Saving Goal: \(goal.title)")
+                for baseTodo in goal.baseTodos {
+                    print("  - Base Todo: \(baseTodo.content), Repeat Days: \(baseTodo.repeatDays)")
+                }
+            }
+            
             let data = try JSONEncoder().encode(goals)
             try data.write(to: saveURL)
         } catch {
@@ -179,6 +187,14 @@ class GoalsViewModel: ObservableObject {
         do {
             let data = try Data(contentsOf: saveURL)
             goals = try JSONDecoder().decode([Goal].self, from: data)
+            
+            // 디버그 로그 추가
+            for goal in goals {
+                print("🔍 Loaded Goal: \(goal.title)")
+                for baseTodo in goal.baseTodos {
+                    print("  - Base Todo: \(baseTodo.content), Repeat Days: \(baseTodo.repeatDays)")
+                }
+            }
         } catch {
             print("❌ Failed to load goals:", error)
         }
