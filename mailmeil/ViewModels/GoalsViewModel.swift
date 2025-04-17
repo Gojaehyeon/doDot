@@ -64,9 +64,16 @@ class GoalsViewModel: ObservableObject {
         if !calendar.isDateInToday(lastReset) {
             for i in goals.indices {
                 if goals[i].isDailyRepeat {
-                    goals[i].todos = goals[i].baseTodos.map { base in
-                        Item(timestamp: Date(), content: base.content, isCompleted: false)
+                    // 완료된 항목만 보존 (이전 날짜의 항목들)
+                    let completedTodos = goals[i].todos.filter { $0.isCompleted }
+                    
+                    // 기존 baseTodos를 기반으로 새로운 항목 생성
+                    let newTodos = goals[i].baseTodos.map { base in
+                        Item(timestamp: Date(), content: base.content, isCompleted: false, repeatDays: base.repeatDays)
                     }
+                    
+                    // 완료된 이전 항목들과 새로운 항목들을 합침
+                    goals[i].todos = newTodos + completedTodos
                 }
             }
             UserDefaults.standard.set(Date(), forKey: "lastResetDate")
@@ -94,10 +101,22 @@ class GoalsViewModel: ObservableObject {
 
     func deleteTodo(goalID: UUID, todoID: UUID) {
         guard let index = goals.firstIndex(where: { $0.id == goalID }) else { return }
-        goals[index].todos.removeAll { $0.id == todoID }
-
-        if goals[index].isDailyRepeat {
-            goals[index].baseTodos.removeAll { $0.id == todoID }
+        
+        // 삭제하려는 항목 찾기
+        if let todoToDelete = goals[index].todos.first(where: { $0.id == todoID }) {
+            if todoToDelete.isCompleted {
+                // 완료된 항목은 todos에서 삭제하지 않음
+                // baseTodos에서만 삭제하여 다음날 생성되지 않도록 함
+                if goals[index].isDailyRepeat {
+                    goals[index].baseTodos.removeAll { $0.id == todoID }
+                }
+            } else {
+                // 완료되지 않은 항목은 모두 삭제
+                goals[index].todos.removeAll { $0.id == todoID }
+                if goals[index].isDailyRepeat {
+                    goals[index].baseTodos.removeAll { $0.id == todoID }
+                }
+            }
         }
 
         saveToDisk()

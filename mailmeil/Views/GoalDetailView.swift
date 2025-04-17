@@ -34,7 +34,9 @@ struct GoalDetailView: View {
                     .onDelete { indexSet in
                         let todosToDelete = indexSet.map { routines[$0] }
                         todosToDelete.forEach { todo in
-                            viewModel.deleteTodo(goalID: goal.id, todoID: todo.id)
+                            if !todo.isCompleted {  // 완료되지 않은 항목만 삭제
+                                viewModel.deleteTodo(goalID: goal.id, todoID: todo.id)
+                            }
                         }
                     }
                     .onMove { from, to in
@@ -63,6 +65,12 @@ struct GoalDetailView: View {
                         .padding(.vertical, 8)
                         .background(Color(.systemGray6))
                         .cornerRadius(20)
+                        .onSubmit {
+                            let content = newTodoText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !content.isEmpty else { return }
+                            viewModel.addTodo(to: goal.id, content: content)
+                            newTodoText = ""
+                        }
                     
                     Button(action: {
                         let content = newTodoText.trimmingCharacters(in: .whitespacesAndNewlines)
