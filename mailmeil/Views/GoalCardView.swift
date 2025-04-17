@@ -11,20 +11,6 @@ struct GoalCardView: View {
     let goal: Goal
     var todos: Binding<[Item]>
 
-    private var todayIndex: Int {
-        (Calendar.current.component(.weekday, from: Date()) + 5) % 7
-    }
-
-    private var remainingTodosCount: Int {
-        if goal.isDailyRepeat {
-            return todos.wrappedValue.filter { todo in
-                todo.repeatDays.contains(todayIndex) && !todo.isCompleted
-            }.count
-        } else {
-            return todos.wrappedValue.filter { !$0.isCompleted }.count
-        }
-    }
-
     var body: some View {
         ZStack(alignment: .leading) {
             RoundedRectangle(cornerRadius: 16)
@@ -45,7 +31,7 @@ struct GoalCardView: View {
                         .font(.system(size: 35))
                         .padding(.leading, -6)
                     Spacer()
-                    Text("\(remainingTodosCount)")
+                    Text("\(todos.wrappedValue.count)")
                         .font(.system(size: 28, weight: .bold))
                         .foregroundColor(.white)
                 }

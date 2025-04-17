@@ -6,11 +6,8 @@ final class Goal: Identifiable, ObservableObject, Codable {
     var emoji: String
     var colorName: String
     var isDailyRepeat: Bool
-    var lastResetDate: Date
     @Published var baseTodos: [Item] = []
     @Published var todos: [Item] = []
-    @Published var completedHistory: [Item] = []
-    @Published var deletedContents: [String] = []
 
     init(
         title: String,
@@ -18,10 +15,7 @@ final class Goal: Identifiable, ObservableObject, Codable {
         colorName: String,
         isDailyRepeat: Bool,
         baseTodos: [Item] = [],
-        todos: [Item] = [],
-        completedHistory: [Item] = [],
-        deletedContents: [String] = [],
-        lastResetDate: Date = Date()
+        todos: [Item] = []
     ) {
         self.title = title
         self.emoji = emoji
@@ -29,9 +23,6 @@ final class Goal: Identifiable, ObservableObject, Codable {
         self.isDailyRepeat = isDailyRepeat
         self.baseTodos = baseTodos
         self.todos = todos
-        self.completedHistory = completedHistory
-        self.deletedContents = deletedContents
-        self.lastResetDate = lastResetDate
     }
 
     var color: Color {
@@ -64,7 +55,7 @@ final class Goal: Identifiable, ObservableObject, Codable {
     }
 
     enum CodingKeys: CodingKey {
-        case id, title, emoji, colorName, isDailyRepeat, baseTodos, todos, lastResetDate, completedHistory, deletedContents
+        case id, title, emoji, colorName, isDailyRepeat, baseTodos, todos
     }
 
     required init(from decoder: Decoder) throws {
@@ -76,9 +67,6 @@ final class Goal: Identifiable, ObservableObject, Codable {
         isDailyRepeat = try container.decode(Bool.self, forKey: .isDailyRepeat)
         baseTodos = try container.decode([Item].self, forKey: .baseTodos)
         todos = try container.decode([Item].self, forKey: .todos)
-        lastResetDate = try container.decode(Date.self, forKey: .lastResetDate)
-        completedHistory = try container.decode([Item].self, forKey: .completedHistory)
-        deletedContents = try container.decode([String].self, forKey: .deletedContents)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -90,8 +78,5 @@ final class Goal: Identifiable, ObservableObject, Codable {
         try container.encode(isDailyRepeat, forKey: .isDailyRepeat)
         try container.encode(baseTodos, forKey: .baseTodos)
         try container.encode(todos, forKey: .todos)
-        try container.encode(lastResetDate, forKey: .lastResetDate)
-        try container.encode(completedHistory, forKey: .completedHistory)
-        try container.encode(deletedContents, forKey: .deletedContents)
     }
 }

@@ -77,18 +77,8 @@ struct EditTodoView: View {
     private func updateTodo() {
         if let goalIndex = viewModel.goals.firstIndex(where: { $0.id == goal.id }),
            let todoIndex = viewModel.goals[goalIndex].todos.firstIndex(where: { $0.id == todo.id }) {
-            var updatedGoal = viewModel.goals[goalIndex]
-            
-            // todos 업데이트
-            updatedGoal.todos[todoIndex].content = content
-            updatedGoal.todos[todoIndex].repeatDays = repeatDays
-            
-            // baseTodos도 업데이트
-            if let baseIndex = updatedGoal.baseTodos.firstIndex(where: { $0.content == todo.content }) {
-                updatedGoal.baseTodos[baseIndex].repeatDays = repeatDays
-            }
-            
-            viewModel.goals[goalIndex] = updatedGoal
+            viewModel.goals[goalIndex].todos[todoIndex].content = content
+            viewModel.goals[goalIndex].todos[todoIndex].repeatDays = repeatDays
             viewModel.saveToDisk()
         }
     }

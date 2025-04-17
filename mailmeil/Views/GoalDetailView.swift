@@ -17,17 +17,11 @@ struct GoalDetailView: View {
     }
     
     private var routines: [Item] {
-        goal.todos.sorted { item1, item2 in
-            if item1.isCompleted == item2.isCompleted {
-                return true
-            }
-            return !item1.isCompleted
-        }
+        goal.todos.sorted { !$0.isCompleted && $1.isCompleted }
     }
     
     private var completedTodos: [Item] {
-        goal.completedHistory
-            .sorted { $0.timestamp > $1.timestamp }
+        goal.todos.filter { $0.isCompleted }
     }
     
     var body: some View {
@@ -40,15 +34,8 @@ struct GoalDetailView: View {
                     .onDelete { indexSet in
                         let todosToDelete = indexSet.map { routines[$0] }
                         todosToDelete.forEach { todo in
-                            if todo.isCompleted {
-                                viewModel.toggleTodo(goalID: goal.id, todoID: todo.id)
-                            }
-                            if goal.isDailyRepeat {
-                                goal.baseTodos.removeAll { $0.content == todo.content }
-                            }
                             viewModel.deleteTodo(goalID: goal.id, todoID: todo.id)
                         }
-                        viewModel.saveToDisk()
                     }
                     .onMove { from, to in
                         var todos = goal.todos
@@ -68,48 +55,39 @@ struct GoalDetailView: View {
             .listStyle(.insetGrouped)
             
             // 항목 추가 UI
-            VStack {
-                Spacer()
-                HStack(spacing: 12) {
-                    TextField("항목 추가하기", text: $newTodoText)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(20)
-                        .onSubmit {
-                            let content = newTodoText.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !content.isEmpty else { return }
-                            viewModel.addTodo(to: goal.id, content: content, repeatDays: [0,1,2,3,4,5,6])
-                            newTodoText = ""
-                        }
-                    
-                    Button(action: {
-                        let content = newTodoText.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !content.isEmpty else { return }
-                        viewModel.addTodo(to: goal.id, content: content, repeatDays: [0,1,2,3,4,5,6])
-                        newTodoText = ""
-                    }) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(Color(goal.color))
-                    }
+            HStack(spacing: 12) {
+                TextField("새로운 항목", text: $newTodoText)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                
+                Button(action: {
+                    let content = newTodoText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !content.isEmpty else { return }
+                    viewModel.addTodo(to: goal.id, content: content)
+                    newTodoText = ""
+                }) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundColor(Color(goal.color))
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: -2)
             }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(Color(.systemBackground))
+            .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: -2)
         }
         .navigationTitle(goal.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: {
-                    withAnimation {
-                        isEditing.toggle()
+                HStack {
+                    if isEditing {
+                        EditButton()
                     }
-                }) {
-                    Text(isEditing ? "완료" : "편집")
+                    Button(isEditing ? "완료" : "편집") {
+                        withAnimation {
+                            isEditing.toggle()
+                        }
+                    }
                 }
             }
         }
@@ -124,14 +102,21 @@ struct GoalDetailView: View {
     private func todoRow(_ todo: Item, isCompletedSection: Bool = false) -> some View {
         HStack {
             Button {
-                if !isCompletedSection {
+                if !isCompletedSection && (goal.isDailyRepeat ? todo.repeatDays.contains(todayIndex) : true) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         viewModel.toggleTodo(goalID: goal.id, todoID: todo.id)
+                        if let index = goal.todos.firstIndex(where: { $0.id == todo.id }) {
+                            let item = goal.todos.remove(at: index)
+                            goal.todos.append(item)
+                        }
                     }
                 }
             } label: {
                 Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(todo.isCompleted ? Color(goal.color) : (goal.isDailyRepeat && !todo.repeatDays.contains(todayIndex) ? Color(goal.color).opacity(0.3) : .gray))
+                    .foregroundColor(todo.isCompleted ? Color(goal.color) : 
+                        (goal.isDailyRepeat ? 
+                            (todo.repeatDays.contains(todayIndex) ? .gray : Color(goal.color).opacity(0.3)) :
+                            .gray))
                     .font(.title3)
             }
             .buttonStyle(BorderlessButtonStyle())
@@ -149,7 +134,11 @@ struct GoalDetailView: View {
             } else {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(todo.content)
-                        .foregroundColor(todo.isCompleted ? .gray : (goal.isDailyRepeat && !todo.repeatDays.contains(todayIndex) ? Color(goal.color).opacity(0.3) : .primary))
+                        .foregroundColor(goal.isDailyRepeat ?
+                            (todo.repeatDays.contains(todayIndex) ? 
+                                (todo.isCompleted ? .gray : .primary) : 
+                                Color(goal.color).opacity(0.3)) :
+                            (todo.isCompleted ? .gray : .primary))
                     
                     if goal.isDailyRepeat {
                         HStack(spacing: 4) {
@@ -171,17 +160,16 @@ struct GoalDetailView: View {
                 Spacer()
                 
                 if goal.isDailyRepeat {
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.gray)
-                        .font(.caption)
+                    Button {
+                        selectedTodo = todo
+                        showEditTodoPage = true
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                            .font(.caption)
+                    }
+                    .buttonStyle(BorderlessButtonStyle())
                 }
-            }
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if goal.isDailyRepeat && !isCompletedSection {
-                selectedTodo = todo
-                showEditTodoPage = true
             }
         }
     }

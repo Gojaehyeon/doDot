@@ -95,7 +95,7 @@ struct EditGoalView: View {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 12)
                                     .fill(textFieldBackgroundColor)
-                                
+
                                 TextField("목표 이름", text: $title)
                                     .font(.title2)
                                     .multilineTextAlignment(.center)
@@ -103,30 +103,14 @@ struct EditGoalView: View {
                                     .focused($isTitleFocused)
                             }
                             .padding(.horizontal)
+
+                            HStack {
+                                Toggle("리스트 반복", isOn: $isDailyRepeat)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                            }
+                            .padding(.horizontal)
                             .padding(.bottom)
                         }
-                    }
-                    .padding(.horizontal)
-
-                    // 반복 설정 섹션
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(backgroundColor)
-                        
-                        HStack {
-                            Text("매일 반복")
-                                .font(.title2)
-                                .bold()
-                            
-                            Spacer()
-                            
-                            Toggle("", isOn: $isDailyRepeat)
-                                .tint(selectedColor)
-                                .labelsHidden()
-                                .frame(width: 50)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
                     }
                     .padding(.horizontal)
 
@@ -135,7 +119,7 @@ struct EditGoalView: View {
                     ZStack {
                         RoundedRectangle(cornerRadius: 16)
                             .fill(backgroundColor)
-                        
+
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 6), spacing: 12) {
                             ForEach(availableEmojis, id: \.self) { emoji in
                                 Text(emoji)
