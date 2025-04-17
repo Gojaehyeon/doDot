@@ -17,7 +17,12 @@ struct GoalDetailView: View {
     }
     
     private var routines: [Item] {
-        goal.todos
+        goal.todos.sorted { item1, item2 in
+            if item1.isCompleted == item2.isCompleted {
+                return true
+            }
+            return !item1.isCompleted
+        }
     }
     
     private var completedTodos: [Item] {
@@ -119,21 +124,18 @@ struct GoalDetailView: View {
     private func todoRow(_ todo: Item, isCompletedSection: Bool = false) -> some View {
         HStack {
             Button {
-                if !isCompletedSection && (goal.isDailyRepeat ? todo.repeatDays.contains(todayIndex) : true) {
+                if !isCompletedSection {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         viewModel.toggleTodo(goalID: goal.id, todoID: todo.id)
                     }
                 }
             } label: {
                 Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(todo.isCompleted ? Color(goal.color) : 
-                        (goal.isDailyRepeat && todo.repeatDays.count > 0 ? 
-                            (todo.repeatDays.contains(todayIndex) ? .gray : Color(goal.color).opacity(0.3)) :
-                            .gray))
+                    .foregroundColor(todo.isCompleted ? Color(goal.color) : (goal.isDailyRepeat && !todo.repeatDays.contains(todayIndex) ? Color(goal.color).opacity(0.3) : .gray))
                     .font(.title3)
             }
             .buttonStyle(BorderlessButtonStyle())
-            .disabled(isCompletedSection || (goal.isDailyRepeat && todo.repeatDays.count > 0 && !todo.repeatDays.contains(todayIndex)))
+            .disabled(isCompletedSection || (goal.isDailyRepeat && !todo.repeatDays.contains(todayIndex)))
             
             if isCompletedSection {
                 VStack(alignment: .leading, spacing: 4) {
@@ -147,11 +149,7 @@ struct GoalDetailView: View {
             } else {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(todo.content)
-                        .foregroundColor(goal.isDailyRepeat && todo.repeatDays.count > 0 ?
-                            (todo.repeatDays.contains(todayIndex) ? 
-                                (todo.isCompleted ? .gray : .primary) : 
-                                Color(goal.color).opacity(0.3)) :
-                            (todo.isCompleted ? .gray : .primary))
+                        .foregroundColor(todo.isCompleted ? .gray : (goal.isDailyRepeat && !todo.repeatDays.contains(todayIndex) ? Color(goal.color).opacity(0.3) : .primary))
                     
                     if goal.isDailyRepeat {
                         HStack(spacing: 4) {

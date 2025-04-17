@@ -32,32 +32,40 @@ class GoalsViewModel: ObservableObject {
         saveToDisk()
     }
 
-    func addTodo(to goalID: UUID, content: String) {
+    func addTodo(to goalID: UUID, content: String, repeatDays: [Int] = [0,1,2,3,4,5,6]) {
         guard let goalIndex = goals.firstIndex(where: { $0.id == goalID }) else { return }
         var updatedGoal = goals[goalIndex]
         
-        let newItem = Item(
-            timestamp: Date(),
-            content: content,
-            isCompleted: false,
-            order: updatedGoal.todos.count,
-            repeatDays: updatedGoal.isDailyRepeat ? [0,1,2,3,4,5,6] : [],
-            isBase: updatedGoal.isDailyRepeat
-        )
-        
         if updatedGoal.isDailyRepeat {
-            updatedGoal.baseTodos.append(newItem)
+            let baseItem = Item(
+                timestamp: Date(),
+                content: content,
+                isCompleted: false,
+                order: updatedGoal.todos.count,
+                repeatDays: repeatDays,  // 사용자가 선택한 요일 사용
+                isBase: true
+            )
+            updatedGoal.baseTodos.append(baseItem)
+            
             let todayItem = Item(
                 timestamp: Date(),
                 content: content,
                 isCompleted: false,
                 order: updatedGoal.todos.count,
-                repeatDays: [0,1,2,3,4,5,6],
+                repeatDays: repeatDays,  // 사용자가 선택한 요일 사용
                 isBase: false
             )
             updatedGoal.todos.append(todayItem)
         } else {
-            updatedGoal.todos.append(newItem)
+            let regularItem = Item(
+                timestamp: Date(),
+                content: content,
+                isCompleted: false,
+                order: updatedGoal.todos.count,
+                repeatDays: [],  // 일반 목표는 요일 정보 없음
+                isBase: false
+            )
+            updatedGoal.todos.append(regularItem)
         }
         
         goals[goalIndex] = updatedGoal
@@ -126,28 +134,30 @@ class GoalsViewModel: ObservableObject {
             var updatedGoal = goals[goalIndex]
             if updatedGoal.isDailyRepeat {
                 if !calendar.isDate(updatedGoal.lastResetDate, inSameDayAs: today) {
-                    // 현재 활성화된 todos에서 완료된 항목들 유지
+                    // 완료된 항목들을 completedHistory에 추가
                     let completedTodos = updatedGoal.todos.filter { $0.isCompleted }
+                    updatedGoal.completedHistory.append(contentsOf: completedTodos)
                     
-                    // 기본 루틴에서 새로운 항목 생성 (삭제된 항목 제외)
+                    // baseTodos에서 새로운 todos 생성 (삭제된 항목 제외)
                     let newTodos = updatedGoal.baseTodos
                         .filter { base in
-                            // 삭제된 항목 목록에 없는 것만 포함
                             !updatedGoal.deletedContents.contains(base.content)
                         }
                         .map { base in
+                            // base의 모든 정보를 그대로 복사하여 새로운 Item 생성
                             Item(
+                                id: UUID(),  // 새로운 ID 생성
                                 timestamp: today,
                                 content: base.content,
                                 isCompleted: false,
                                 order: base.order,
-                                repeatDays: base.repeatDays,
+                                repeatDays: base.repeatDays,  // base의 repeatDays를 그대로 복사
                                 isBase: false
                             )
                         }
                     
-                    // 완료된 항목과 새로운 항목을 합침
-                    updatedGoal.todos = completedTodos + newTodos
+                    // 기존 todos를 새로운 todos로 교체
+                    updatedGoal.todos = newTodos
                     updatedGoal.lastResetDate = today
                     goals[goalIndex] = updatedGoal
                 }
@@ -230,6 +240,24 @@ class GoalsViewModel: ObservableObject {
                 return updatedTodo
             }
             updatedGoal.baseTodos = []
+        }
+        // 반복 설정이 켜질 때 모든 투두를 매일 반복으로 설정
+        else if !updatedGoal.isDailyRepeat && isDailyRepeat {
+            // 기존 todos를 baseTodos로 복사
+            updatedGoal.baseTodos = updatedGoal.todos.map { todo in
+                var baseTodo = todo
+                baseTodo.repeatDays = [0,1,2,3,4,5,6]
+                baseTodo.isBase = true
+                return baseTodo
+            }
+            
+            // 기존 todos도 매일 반복으로 설정
+            updatedGoal.todos = updatedGoal.todos.map { todo in
+                var updatedTodo = todo
+                updatedTodo.repeatDays = [0,1,2,3,4,5,6]
+                updatedTodo.isBase = false
+                return updatedTodo
+            }
         }
         
         updatedGoal.title = title

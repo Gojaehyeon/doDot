@@ -137,7 +137,7 @@ private struct TodoRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .center) {
-                if isToday {
+                if !isDailyRepeat || isToday {
                     Button(action: {
                         onToggle?()
                     }) {
@@ -161,51 +161,49 @@ private struct TodoRowView: View {
                     .padding(.vertical, 4)
                     .padding(.trailing, 12)
                 } else {
-                    HStack {
-                        Text(todo.content)
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(todo.isCompleted ? .gray : (isToday ? .primary : .gray))
-                            .onTapGesture {
-                                isEditing = true
-                            }
+                    Text(todo.content)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(todo.isCompleted ? .gray : ((!isDailyRepeat || isToday) ? .primary : .gray))
+                        .onTapGesture {
+                            isEditing = true
+                        }
 
-                        Spacer()
+                    Spacer()
 
-                        if isDailyRepeat {
-                            HStack(spacing: 2) {
-                                let weekdaySymbols = ["월", "화", "수", "목", "금", "토", "일"]
+                    if isDailyRepeat {
+                        HStack(spacing: 2) {
+                            let weekdaySymbols = ["월", "화", "수", "목", "금", "토", "일"]
 
-                                ForEach(0..<7, id: \.self) { index in
-                                    let isSelected = todo.repeatDays.contains(index)
-                                    let isCompleted = todo.completedDays.contains(index)
+                            ForEach(0..<7, id: \.self) { index in
+                                let isSelected = todo.repeatDays.contains(index)
+                                let isCompleted = todo.completedDays.contains(index)
 
-                                    if isSelected {
-                                        ZStack {
+                                if isSelected {
+                                    ZStack {
+                                        Circle()
+                                            .fill(goalColor.opacity(0.2))
+                                            .frame(width: 16, height: 16)
+
+                                        if isCompleted {
                                             Circle()
-                                                .fill(goalColor.opacity(0.2))
+                                                .stroke(goalColor, lineWidth: 3)
                                                 .frame(width: 16, height: 16)
-
-                                            if isCompleted {
-                                                Circle()
-                                                    .stroke(goalColor, lineWidth: 3)
-                                                    .frame(width: 16, height: 16)
-                                            }
-
-                                            Text(weekdaySymbols[index])
-                                                .font(.caption2)
-                                                .foregroundColor(.gray)
                                         }
-                                        .frame(minWidth: 16)
+
+                                        Text(weekdaySymbols[index])
+                                            .font(.caption2)
+                                            .foregroundColor(.gray)
                                     }
+                                    .frame(minWidth: 16)
                                 }
                             }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                onTapRepeatDays?()
-                            }
                         }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            onTapRepeatDays?()
+                        }
+                        .padding(.trailing, 20)
                     }
-                    .padding(.trailing, 20)
                 }
             }
             .padding(.leading, 20)
