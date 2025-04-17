@@ -74,24 +74,28 @@ class GoalsViewModel: ObservableObject {
     }
 
     func toggleTodo(goalID: UUID, todoID: UUID) {
-        guard let goalIndex = goals.firstIndex(where: { $0.id == goalID }) else { return }
-        guard let todoIndex = goals[goalIndex].todos.firstIndex(where: { $0.id == todoID }) else { return }
+        guard let goalIndex = goals.firstIndex(where: { $0.id == goalID }),
+              let todoIndex = goals[goalIndex].todos.firstIndex(where: { $0.id == todoID })
+        else { return }
         
-        withAnimation {
-            var updatedGoal = goals[goalIndex]
-            var updatedTodo = updatedGoal.todos[todoIndex]
-            updatedTodo.isCompleted.toggle()
-            updatedTodo.timestamp = Date()
-            
-            updatedGoal.todos[todoIndex] = updatedTodo
-            
-            if updatedTodo.isCompleted {
-                updatedGoal.completedHistory.append(updatedTodo)
+        // 상태 업데이트를 메인 스레드에서 즉시 실행
+        DispatchQueue.main.async {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                var updatedGoal = self.goals[goalIndex]
+                var updatedTodo = updatedGoal.todos[todoIndex]
+                updatedTodo.isCompleted.toggle()
+                updatedTodo.timestamp = Date()
+                
+                updatedGoal.todos[todoIndex] = updatedTodo
+                
+                if updatedTodo.isCompleted {
+                    updatedGoal.completedHistory.append(updatedTodo)
+                }
+                
+                self.goals[goalIndex] = updatedGoal
+                self.objectWillChange.send()
+                self.saveToDisk()
             }
-            
-            goals[goalIndex] = updatedGoal
-            objectWillChange.send()
-            saveToDisk()
         }
     }
 

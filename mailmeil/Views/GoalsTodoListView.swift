@@ -45,12 +45,16 @@ struct GoalTodoListView: View {
                             ForEach(Array(todos.enumerated()).filter { !$0.element.isCompleted }, id: \.element.id) { offset, _ in
                                 todoRow(todo: $todos[offset], onTapRepeatDays: {
                                     onTapRepeatDays(goal)
+                                }, onToggle: {
+                                    onToggle(todos[offset].id)
                                 })
                             }
 
                             ForEach(Array(todos.enumerated()).filter { $0.element.isCompleted }, id: \.element.id) { offset, _ in
                                 todoRow(todo: $todos[offset], onTapRepeatDays: {
                                     onTapRepeatDays(goal)
+                                }, onToggle: {
+                                    onToggle(todos[offset].id)
                                 })
                             }
                         }
@@ -69,9 +73,14 @@ struct GoalTodoListView: View {
                         }
                     }
                     .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            isFocused = true
+                        if isAdding {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                isFocused = true
+                            }
                         }
+                    }
+                    .onDisappear {
+                        isFocused = false
                     }
                     .padding(.leading, 20)
                 } else {
@@ -99,12 +108,13 @@ struct GoalTodoListView: View {
         }
     }
 
-    private func todoRow(todo: Binding<Item>, onTapRepeatDays: @escaping () -> Void) -> some View {
+    private func todoRow(todo: Binding<Item>, onTapRepeatDays: @escaping () -> Void, onToggle: @escaping () -> Void) -> some View {
         TodoRowView(
             todo: todo,
             goalColor: goalColor,
             isDailyRepeat: goal.isDailyRepeat,
-            onTapRepeatDays: onTapRepeatDays
+            onTapRepeatDays: onTapRepeatDays,
+            onToggle: onToggle
         )
     }
 }
@@ -114,21 +124,37 @@ private struct TodoRowView: View {
     var goalColor: Color
     var isDailyRepeat: Bool
     var onTapRepeatDays: (() -> Void)?
+    var onToggle: (() -> Void)?
+    
+    @State private var localIsCompleted: Bool
 
-    @State private var isEditing = false
+    init(todo: Binding<Item>, goalColor: Color, isDailyRepeat: Bool, onTapRepeatDays: (() -> Void)? = nil, onToggle: (() -> Void)? = nil) {
+        self._todo = todo
+        self.goalColor = goalColor
+        self.isDailyRepeat = isDailyRepeat
+        self.onTapRepeatDays = onTapRepeatDays
+        self.onToggle = onToggle
+        self._localIsCompleted = State(initialValue: todo.wrappedValue.isCompleted)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .center) {
-                Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .resizable()
-                    .frame(width: 22, height: 22)
-                    .foregroundColor(todo.isCompleted ? goalColor : .gray)
-                    .onTapGesture {
-                        withAnimation {
-                            todo.isCompleted.toggle()
-                        }
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        localIsCompleted.toggle()
+                        onToggle?()
                     }
+                }) {
+                    Image(systemName: localIsCompleted ? "checkmark.circle.fill" : "circle")
+                        .resizable()
+                        .frame(width: 22, height: 22)
+                        .foregroundColor(localIsCompleted ? goalColor : .gray)
+                }
+                .buttonStyle(BorderlessButtonStyle())
+                .onChange(of: todo.isCompleted) { newValue in
+                    localIsCompleted = newValue
+                }
 
                 if isEditing {
                     TextField("", text: $todo.content, onCommit: {
@@ -142,7 +168,7 @@ private struct TodoRowView: View {
                     HStack {
                         Text(todo.content)
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(todo.isCompleted ? .gray : .primary)
+                            .foregroundColor(localIsCompleted ? .gray : .primary)
                             .onTapGesture {
                                 isEditing = true
                             }
@@ -187,6 +213,8 @@ private struct TodoRowView: View {
                 .padding(.leading, 20)
         }
     }
+
+    @State private var isEditing = false
 }
 
 private struct SwipeableTodoRow: View {
