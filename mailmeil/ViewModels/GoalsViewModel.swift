@@ -16,33 +16,51 @@ class GoalsViewModel: ObservableObject {
     }
 
     func addGoal(title: String, emoji: String, colorName: String, isDailyRepeat: Bool) {
-        let newGoal = Goal(title: title, emoji: emoji, colorName: colorName, isDailyRepeat: isDailyRepeat)
+        let newGoal = Goal(
+            title: title,
+            emoji: emoji,
+            colorName: colorName,
+            isDailyRepeat: isDailyRepeat,
+            baseTodos: [],
+            todos: [],
+            completedHistory: [],
+            deletedContents: [],
+            lastResetDate: Date()
+        )
         goals.append(newGoal)
         objectWillChange.send()
         saveToDisk()
     }
 
-    func addTodo(to goalID: UUID, content: String, repeatDays: [Int] = [0, 1, 2, 3, 4, 5, 6]) {
-        print("🧩 addTodo called for goalID: \(goalID), content: \(content)")
-
-        guard let index = goals.firstIndex(where: { $0.id == goalID }) else {
-            print("❌ Couldn't find goal with ID: \(goalID)")
-            return
-        }
-
-        print("✅ Found goal at index: \(index)")
-        let newTodo = Item(timestamp: Date(), content: content, repeatDays: repeatDays)
-
-        if goals[index].isDailyRepeat {
-            goals[index].baseTodos.append(newTodo)
-            goals[index].todos.append(newTodo)
+    func addTodo(to goalID: UUID, content: String) {
+        guard let goalIndex = goals.firstIndex(where: { $0.id == goalID }) else { return }
+        var updatedGoal = goals[goalIndex]
+        
+        let newItem = Item(
+            timestamp: Date(),
+            content: content,
+            isCompleted: false,
+            order: updatedGoal.todos.count,
+            repeatDays: updatedGoal.isDailyRepeat ? [0,1,2,3,4,5,6] : [],
+            isBase: updatedGoal.isDailyRepeat
+        )
+        
+        if updatedGoal.isDailyRepeat {
+            updatedGoal.baseTodos.append(newItem)
+            let todayItem = Item(
+                timestamp: Date(),
+                content: content,
+                isCompleted: false,
+                order: updatedGoal.todos.count,
+                repeatDays: [0,1,2,3,4,5,6],
+                isBase: false
+            )
+            updatedGoal.todos.append(todayItem)
         } else {
-            goals[index].todos.append(newTodo)
+            updatedGoal.todos.append(newItem)
         }
-
-        print("📥 New todo added. Current todos: \(goals[index].todos.map { $0.content })")
-
-        objectWillChange.send()
+        
+        goals[goalIndex] = updatedGoal
         saveToDisk()
     }
 
@@ -51,34 +69,91 @@ class GoalsViewModel: ObservableObject {
         guard let todoIndex = goals[goalIndex].todos.firstIndex(where: { $0.id == todoID }) else { return }
         
         withAnimation {
-            goals[goalIndex].todos[todoIndex].isCompleted.toggle()
-            goals[goalIndex].todos[todoIndex].timestamp = Date()
+            var updatedGoal = goals[goalIndex]
+            var updatedTodo = updatedGoal.todos[todoIndex]
+            updatedTodo.isCompleted.toggle()
+            updatedTodo.timestamp = Date()
+            
+            updatedGoal.todos[todoIndex] = updatedTodo
+            
+            if updatedTodo.isCompleted {
+                updatedGoal.completedHistory.append(updatedTodo)
+            }
+            
+            goals[goalIndex] = updatedGoal
             objectWillChange.send()
             saveToDisk()
         }
     }
 
+    func deleteTodo(goalID: UUID, todoID: UUID) {
+        guard let goalIndex = goals.firstIndex(where: { $0.id == goalID }) else { return }
+        var updatedGoal = goals[goalIndex]
+        
+        guard let todoToDelete = updatedGoal.todos.first(where: { $0.id == todoID }) else { return }
+        
+        if updatedGoal.isDailyRepeat {
+            // 기본 루틴에서 해당 항목 삭제
+            updatedGoal.baseTodos.removeAll { todo in
+                todo.content == todoToDelete.content
+            }
+            
+            // 현재 활성화된 루틴에서 해당 항목 삭제
+            updatedGoal.todos.removeAll { todo in
+                todo.content == todoToDelete.content
+            }
+            
+            // 삭제된 항목 기록 추가
+            updatedGoal.deletedContents.append(todoToDelete.content)
+        } else {
+            updatedGoal.todos.removeAll { $0.id == todoID }
+        }
+        
+        goals[goalIndex] = updatedGoal
+        objectWillChange.send()
+        saveToDisk()
+    }
+
+    private func todayIndex() -> Int {
+        (Calendar.current.component(.weekday, from: Date()) + 5) % 7
+    }
+
     func resetDailyGoalsIfNeeded() {
-        let lastReset = UserDefaults.standard.object(forKey: "lastResetDate") as? Date ?? .distantPast
         let calendar = Calendar.current
-        if !calendar.isDateInToday(lastReset) {
-            for i in goals.indices {
-                if goals[i].isDailyRepeat {
-                    // 완료된 항목만 보존 (이전 날짜의 항목들)
-                    let completedTodos = goals[i].todos.filter { $0.isCompleted }
+        let today = Date()
+        
+        for goalIndex in goals.indices {
+            var updatedGoal = goals[goalIndex]
+            if updatedGoal.isDailyRepeat {
+                if !calendar.isDate(updatedGoal.lastResetDate, inSameDayAs: today) {
+                    // 현재 활성화된 todos에서 완료된 항목들 유지
+                    let completedTodos = updatedGoal.todos.filter { $0.isCompleted }
                     
-                    // 기존 baseTodos를 기반으로 새로운 항목 생성
-                    let newTodos = goals[i].baseTodos.map { base in
-                        Item(timestamp: Date(), content: base.content, isCompleted: false, repeatDays: base.repeatDays)
-                    }
+                    // 기본 루틴에서 새로운 항목 생성 (삭제된 항목 제외)
+                    let newTodos = updatedGoal.baseTodos
+                        .filter { base in
+                            // 삭제된 항목 목록에 없는 것만 포함
+                            !updatedGoal.deletedContents.contains(base.content)
+                        }
+                        .map { base in
+                            Item(
+                                timestamp: today,
+                                content: base.content,
+                                isCompleted: false,
+                                order: base.order,
+                                repeatDays: base.repeatDays,
+                                isBase: false
+                            )
+                        }
                     
-                    // 완료된 이전 항목들과 새로운 항목들을 합침
-                    goals[i].todos = newTodos + completedTodos
+                    // 완료된 항목과 새로운 항목을 합침
+                    updatedGoal.todos = completedTodos + newTodos
+                    updatedGoal.lastResetDate = today
+                    goals[goalIndex] = updatedGoal
                 }
             }
-            UserDefaults.standard.set(Date(), forKey: "lastResetDate")
-            saveToDisk()
         }
+        saveToDisk()
     }
     
     func saveToDisk() {
@@ -99,29 +174,6 @@ class GoalsViewModel: ObservableObject {
         }
     }
 
-    func deleteTodo(goalID: UUID, todoID: UUID) {
-        guard let index = goals.firstIndex(where: { $0.id == goalID }) else { return }
-        
-        // 삭제하려는 항목 찾기
-        if let todoToDelete = goals[index].todos.first(where: { $0.id == todoID }) {
-            if todoToDelete.isCompleted {
-                // 완료된 항목은 todos에서 삭제하지 않음
-                // baseTodos에서만 삭제하여 다음날 생성되지 않도록 함
-                if goals[index].isDailyRepeat {
-                    goals[index].baseTodos.removeAll { $0.id == todoID }
-                }
-            } else {
-                // 완료되지 않은 항목은 모두 삭제
-                goals[index].todos.removeAll { $0.id == todoID }
-                if goals[index].isDailyRepeat {
-                    goals[index].baseTodos.removeAll { $0.id == todoID }
-                }
-            }
-        }
-
-        saveToDisk()
-    }
-
     func loadSampleGoals() {
         self.goals = [
             Goal(
@@ -131,9 +183,26 @@ class GoalsViewModel: ObservableObject {
                 isDailyRepeat: false,
                 baseTodos: [],
                 todos: [
-                    Item(timestamp: Date(), content: "런닝 30분", isCompleted: false),
-                    Item(timestamp: Date(), content: "푸쉬업 20회", isCompleted: true)
-                ]
+                    Item(
+                        timestamp: Date(),
+                        content: "런닝 30분",
+                        isCompleted: false,
+                        order: 0,
+                        repeatDays: [],
+                        isBase: false
+                    ),
+                    Item(
+                        timestamp: Date(),
+                        content: "푸쉬업 20회",
+                        isCompleted: true,
+                        order: 1,
+                        repeatDays: [],
+                        isBase: false
+                    )
+                ],
+                completedHistory: [],
+                deletedContents: [],
+                lastResetDate: Date()
             )
         ]
     }
@@ -150,40 +219,24 @@ class GoalsViewModel: ObservableObject {
 
     func updateGoal(id: UUID, title: String, emoji: String, colorName: String, isDailyRepeat: Bool) {
         guard let index = goals.firstIndex(where: { $0.id == id }) else { return }
-        goals[index].title = title
-        goals[index].emoji = emoji
-        goals[index].colorName = colorName
-        goals[index].isDailyRepeat = isDailyRepeat
-        saveToDisk()
-    }
-    
-    func processRepeatingTodosIfNeeded() {
-        let today = Calendar.current.startOfDay(for: Date())
-        let lastProcessed = UserDefaults.standard.object(forKey: "lastProcessedDate") as? Date
+        var updatedGoal = goals[index]
         
-        guard lastProcessed == nil || Calendar.current.compare(today, to: lastProcessed!, toGranularity: .day) == .orderedDescending else {
-            return
-        }
-        
-        let todayIndex = (Calendar.current.component(.weekday, from: Date()) + 5) % 7
-        
-        for i in goals.indices {
-            var updatedTodos: [Item] = []
-            for todo in goals[i].todos {
-                if todo.repeatDays.contains(todayIndex) {
-                    if todo.isCompleted {
-                        updatedTodos.append(todo)
-                    }
-                    let newTodo = Item(timestamp: Date(), content: todo.content, isCompleted: false, repeatDays: todo.repeatDays)
-                    updatedTodos.append(newTodo)
-                } else {
-                    updatedTodos.append(todo)
-                }
+        // 반복 설정이 꺼질 때 모든 투두의 repeatDays 초기화
+        if updatedGoal.isDailyRepeat && !isDailyRepeat {
+            updatedGoal.todos = updatedGoal.todos.map { todo in
+                var updatedTodo = todo
+                updatedTodo.repeatDays = []
+                updatedTodo.isBase = false
+                return updatedTodo
             }
-            goals[i].todos = updatedTodos
+            updatedGoal.baseTodos = []
         }
         
-        UserDefaults.standard.set(today, forKey: "lastProcessedDate")
+        updatedGoal.title = title
+        updatedGoal.emoji = emoji
+        updatedGoal.colorName = colorName
+        updatedGoal.isDailyRepeat = isDailyRepeat
+        goals[index] = updatedGoal
         saveToDisk()
     }
 }

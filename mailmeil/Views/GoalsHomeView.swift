@@ -124,7 +124,7 @@ struct GoalsHomeView: View {
             }
             .onAppear {
                 reorderedGoals = viewModel.goals
-                viewModel.processRepeatingTodosIfNeeded()
+                viewModel.resetDailyGoalsIfNeeded()
             }
             .onReceive(viewModel.$goals) { newGoals in
                 reorderedGoals = newGoals
@@ -191,7 +191,10 @@ struct GoalsHomeView: View {
                 get: { goal.todos },
                 set: { newValue in
                     if let index = viewModel.goals.firstIndex(where: { $0.id == goal.id }) {
-                        viewModel.goals[index].todos = newValue
+                        var updatedGoal = viewModel.goals[index]
+                        updatedGoal.todos = newValue
+                        updatedGoal.lastResetDate = goal.lastResetDate
+                        viewModel.goals[index] = updatedGoal
                     }
                 }
             )
@@ -325,13 +328,28 @@ struct GoalsHomeView: View {
             todos: Binding(
                 get: {
                     if let index = viewModel.goals.firstIndex(where: { $0.id == goal.id }) {
-                        return viewModel.goals[index].todos.filter { $0.repeatDays.contains(todayIndex()) }
+                        let allTodos = viewModel.goals[index].todos
+                        if goal.isDailyRepeat {
+                            return allTodos.filter { $0.repeatDays.contains(todayIndex()) }
+                        }
+                        return allTodos
                     }
                     return []
                 },
                 set: { newValue in
                     if let index = viewModel.goals.firstIndex(where: { $0.id == goal.id }) {
-                        viewModel.goals[index].todos = newValue
+                        var updatedGoal = viewModel.goals[index]
+                        // 일반 투두의 경우 그대로 설정
+                        if !goal.isDailyRepeat {
+                            updatedGoal.todos = newValue
+                        } else {
+                            // 반복 투두의 경우 기존 항목 중 오늘 요일이 아닌 것은 유지
+                            let todayTodos = newValue
+                            let otherDayTodos = updatedGoal.todos.filter { !$0.repeatDays.contains(todayIndex()) }
+                            updatedGoal.todos = todayTodos + otherDayTodos
+                        }
+                        updatedGoal.lastResetDate = goal.lastResetDate
+                        viewModel.goals[index] = updatedGoal
                     }
                 }
             ),

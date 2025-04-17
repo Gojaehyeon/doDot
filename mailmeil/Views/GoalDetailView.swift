@@ -17,11 +17,12 @@ struct GoalDetailView: View {
     }
     
     private var routines: [Item] {
-        goal.todos.sorted { !$0.isCompleted && $1.isCompleted }
+        goal.todos
     }
     
     private var completedTodos: [Item] {
-        goal.todos.filter { $0.isCompleted }
+        goal.completedHistory
+            .sorted { $0.timestamp > $1.timestamp }
     }
     
     var body: some View {
@@ -34,10 +35,15 @@ struct GoalDetailView: View {
                     .onDelete { indexSet in
                         let todosToDelete = indexSet.map { routines[$0] }
                         todosToDelete.forEach { todo in
-                            if !todo.isCompleted {  // 완료되지 않은 항목만 삭제
-                                viewModel.deleteTodo(goalID: goal.id, todoID: todo.id)
+                            if todo.isCompleted {
+                                viewModel.toggleTodo(goalID: goal.id, todoID: todo.id)
                             }
+                            if goal.isDailyRepeat {
+                                goal.baseTodos.removeAll { $0.content == todo.content }
+                            }
+                            viewModel.deleteTodo(goalID: goal.id, todoID: todo.id)
                         }
+                        viewModel.saveToDisk()
                     }
                     .onMove { from, to in
                         var todos = goal.todos
@@ -116,22 +122,18 @@ struct GoalDetailView: View {
                 if !isCompletedSection && (goal.isDailyRepeat ? todo.repeatDays.contains(todayIndex) : true) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         viewModel.toggleTodo(goalID: goal.id, todoID: todo.id)
-                        if let index = goal.todos.firstIndex(where: { $0.id == todo.id }) {
-                            let item = goal.todos.remove(at: index)
-                            goal.todos.append(item)
-                        }
                     }
                 }
             } label: {
                 Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
                     .foregroundColor(todo.isCompleted ? Color(goal.color) : 
-                        (goal.isDailyRepeat ? 
+                        (goal.isDailyRepeat && todo.repeatDays.count > 0 ? 
                             (todo.repeatDays.contains(todayIndex) ? .gray : Color(goal.color).opacity(0.3)) :
                             .gray))
                     .font(.title3)
             }
             .buttonStyle(BorderlessButtonStyle())
-            .disabled(isCompletedSection || (goal.isDailyRepeat && !todo.repeatDays.contains(todayIndex)))
+            .disabled(isCompletedSection || (goal.isDailyRepeat && todo.repeatDays.count > 0 && !todo.repeatDays.contains(todayIndex)))
             
             if isCompletedSection {
                 VStack(alignment: .leading, spacing: 4) {
@@ -145,7 +147,7 @@ struct GoalDetailView: View {
             } else {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(todo.content)
-                        .foregroundColor(goal.isDailyRepeat ?
+                        .foregroundColor(goal.isDailyRepeat && todo.repeatDays.count > 0 ?
                             (todo.repeatDays.contains(todayIndex) ? 
                                 (todo.isCompleted ? .gray : .primary) : 
                                 Color(goal.color).opacity(0.3)) :
@@ -171,16 +173,17 @@ struct GoalDetailView: View {
                 Spacer()
                 
                 if goal.isDailyRepeat {
-                    Button {
-                        selectedTodo = todo
-                        showEditTodoPage = true
-                    } label: {
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
-                            .font(.caption)
-                    }
-                    .buttonStyle(BorderlessButtonStyle())
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.gray)
+                        .font(.caption)
                 }
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if goal.isDailyRepeat && !isCompletedSection {
+                selectedTodo = todo
+                showEditTodoPage = true
             }
         }
     }
