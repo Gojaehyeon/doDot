@@ -6,16 +6,14 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @ObservedObject var viewModel = GoalsViewModel()
 
     var body: some View {
-        NavigationSplitView {
+        NavigationView {
             List {
-                ForEach(items) { item in
+                ForEach(viewModel.goals.flatMap { $0.todos }) { item in
                     NavigationLink {
                         Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
                     } label: {
@@ -34,28 +32,37 @@ struct ContentView: View {
                     }
                 }
             }
-        } detail: {
-            Text("Select an item")
         }
     }
 
     private func addItem() {
         withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
+            let goal = Goal(title: "테스트", emoji: "🧪", colorName: "blue", isDailyRepeat: false)
+            let item = Item(timestamp: Date(), content: "")
+            goal.todos.append(item)
+            viewModel.goals.append(goal)
+            viewModel.saveToDisk()
         }
     }
 
     private func deleteItems(offsets: IndexSet) {
         withAnimation {
             for index in offsets {
-                modelContext.delete(items[index])
+                let flatItems = viewModel.goals.flatMap { $0.todos }
+                guard index < flatItems.count else { continue }
+                let itemToDelete = flatItems[index]
+                for goal in viewModel.goals.indices {
+                    if let idx = viewModel.goals[goal].todos.firstIndex(where: { $0.id == itemToDelete.id }) {
+                        viewModel.goals[goal].todos.remove(at: idx)
+                        break
+                    }
+                }
             }
+            viewModel.saveToDisk()
         }
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }
