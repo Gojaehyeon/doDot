@@ -55,39 +55,42 @@ struct GoalDetailView: View {
             .listStyle(.insetGrouped)
             
             // 항목 추가 UI
-            HStack(spacing: 12) {
-                TextField("새로운 항목", text: $newTodoText)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                
-                Button(action: {
-                    let content = newTodoText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !content.isEmpty else { return }
-                    viewModel.addTodo(to: goal.id, content: content)
-                    newTodoText = ""
-                }) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 28))
-                        .foregroundColor(Color(goal.color))
+            VStack {
+                Spacer()
+                HStack(spacing: 12) {
+                    TextField("항목 추가하기", text: $newTodoText)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(20)
+                    
+                    Button(action: {
+                        let content = newTodoText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !content.isEmpty else { return }
+                        viewModel.addTodo(to: goal.id, content: content)
+                        newTodoText = ""
+                    }) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(Color(goal.color))
+                    }
                 }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: -2)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color(.systemBackground))
-            .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: -2)
         }
         .navigationTitle(goal.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                HStack {
-                    if isEditing {
-                        EditButton()
+                Button(action: {
+                    withAnimation {
+                        isEditing.toggle()
                     }
-                    Button(isEditing ? "완료" : "편집") {
-                        withAnimation {
-                            isEditing.toggle()
-                        }
-                    }
+                }) {
+                    Text(isEditing ? "완료" : "편집")
                 }
             }
         }
