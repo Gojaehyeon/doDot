@@ -13,6 +13,7 @@ struct GoalTodoListView: View {
     var onTapRepeatDays: (Goal) -> Void
     @FocusState private var isFocused: Bool
     @State private var openRowID: UUID? = nil
+    @State private var shouldFocus: Bool = false
 
     var body: some View {
         Group {
@@ -42,7 +43,15 @@ struct GoalTodoListView: View {
 
                     ScrollView {
                         LazyVStack(spacing: 0) {
-                            ForEach(Array(todos.enumerated()).filter { !$0.element.isCompleted }, id: \.element.id) { offset, _ in
+                            ForEach(Array(todos.enumerated()).filter { 
+                                let todo = $0.element
+                                if goal.isDailyRepeat {
+                                    let todayIndex = (Calendar.current.component(.weekday, from: Date()) + 5) % 7
+                                    return !todo.isCompleted && todo.repeatDays.contains(todayIndex)
+                                } else {
+                                    return !todo.isCompleted
+                                }
+                            }, id: \.element.id) { offset, _ in
                                 todoRow(todo: $todos[offset], onTapRepeatDays: {
                                     onTapRepeatDays(goal)
                                 }, onToggle: {
@@ -50,7 +59,15 @@ struct GoalTodoListView: View {
                                 })
                             }
 
-                            ForEach(Array(todos.enumerated()).filter { $0.element.isCompleted }, id: \.element.id) { offset, _ in
+                            ForEach(Array(todos.enumerated()).filter { 
+                                let todo = $0.element
+                                if goal.isDailyRepeat {
+                                    let todayIndex = (Calendar.current.component(.weekday, from: Date()) + 5) % 7
+                                    return todo.isCompleted && todo.repeatDays.contains(todayIndex)
+                                } else {
+                                    return todo.isCompleted
+                                }
+                            }, id: \.element.id) { offset, _ in
                                 todoRow(todo: $todos[offset], onTapRepeatDays: {
                                     onTapRepeatDays(goal)
                                 }, onToggle: {
@@ -67,16 +84,15 @@ struct GoalTodoListView: View {
                     })
                     .focused($isFocused)
                     .multilineTextAlignment(.leading)
-                    .onReceive(NotificationCenter.default.publisher(for: Notification.Name("RefocusTodoInput"))) { notification in
-                        if let goalId = notification.object as? UUID, goalId == goal.id {
-                            isFocused = true
+                    .onChange(of: isAdding) { newValue in
+                        if newValue {
+                            shouldFocus = true
                         }
                     }
                     .onAppear {
-                        if isAdding {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                isFocused = true
-                            }
+                        if shouldFocus {
+                            isFocused = true
+                            shouldFocus = false
                         }
                     }
                     .onDisappear {
@@ -86,6 +102,7 @@ struct GoalTodoListView: View {
                 } else {
                     Button(action: {
                         isAdding = true
+                        shouldFocus = true
                     }) {
                         HStack(spacing: 8) {
                             Circle()
