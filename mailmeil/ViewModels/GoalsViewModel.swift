@@ -74,14 +74,18 @@ class GoalsViewModel: ObservableObject {
     }
 
     func toggleTodo(goalID: UUID, todoID: UUID) {
-        guard let goalIndex = goals.firstIndex(where: { $0.id == goalID }),
-              let todoIndex = goals[goalIndex].todos.firstIndex(where: { $0.id == todoID })
-        else { return }
+        guard let goalIndex = goals.firstIndex(where: { $0.id == goalID }) else { return }
         
-        // 상태 업데이트를 메인 스레드에서 즉시 실행
+        // 메인 스레드에서 즉시 실행
         DispatchQueue.main.async {
+            // 상태가 변경되었을 수 있으므로 goalIndex를 다시 확인
+            guard goalIndex < self.goals.count else { return }
+            
+            var updatedGoal = self.goals[goalIndex]
+            guard let todoIndex = updatedGoal.todos.firstIndex(where: { $0.id == todoID }),
+                  todoIndex < updatedGoal.todos.count else { return }
+            
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                var updatedGoal = self.goals[goalIndex]
                 var updatedTodo = updatedGoal.todos[todoIndex]
                 updatedTodo.isCompleted.toggle()
                 updatedTodo.timestamp = Date()
@@ -105,23 +109,33 @@ class GoalsViewModel: ObservableObject {
         
         guard let todoToDelete = updatedGoal.todos.first(where: { $0.id == todoID }) else { return }
         
+        // todos에서 삭제
         if updatedGoal.isDailyRepeat {
-            // 기본 루틴에서 해당 항목 삭제
-            updatedGoal.baseTodos.removeAll { todo in
-                todo.content == todoToDelete.content
-            }
-            
-            // 현재 활성화된 루틴에서 해당 항목 삭제
+            // 일일 반복 투두의 경우 content로 매칭
             updatedGoal.todos.removeAll { todo in
                 todo.content == todoToDelete.content
             }
             
-            // 삭제된 항목 기록 추가
-            updatedGoal.deletedContents.append(todoToDelete.content)
+            // baseTodos에서도 삭제
+            updatedGoal.baseTodos.removeAll { todo in
+                todo.content == todoToDelete.content
+            }
+            
+            // 삭제된 항목 기록
+            if !updatedGoal.deletedContents.contains(todoToDelete.content) {
+                updatedGoal.deletedContents.append(todoToDelete.content)
+            }
         } else {
+            // 일반 투두의 경우 id로 매칭하여 삭제
             updatedGoal.todos.removeAll { $0.id == todoID }
+            
+            // 일반 투두의 경우에만 completedHistory에서도 제거
+            if todoToDelete.isCompleted {
+                updatedGoal.completedHistory.removeAll { $0.id == todoID }
+            }
         }
         
+        // 변경사항 저장
         goals[goalIndex] = updatedGoal
         objectWillChange.send()
         saveToDisk()
